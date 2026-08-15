@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KDJ 选股中心</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/screener.css') }}">
+</head>
+<body>
+<div class="hdr">
+  <h1>🎯 KDJ 选股中心</h1>
+  <span class="sub">市值分桶预筛 → KDJ 四重过滤 → 本地缓存</span>
+  <span class="fresh-badge" id="freshBadge">⏳ 检查缓存中...</span>
+  <div class="st" id="conn">连通性检测中...</div>
+  <a class="home" href="/">🏠 主站</a>
+  <a class="home" href="/fundamental">📊 基本面</a>
+  <a class="home" href="/admin">🛠️ 后台</a>
+</div>
+
+<div class="layout">
+  <div class="tabs">
+    <button class="tab on" data-tab="pick">🎯 选股</button>
+    <button class="tab" data-tab="buckets">📊 市值分桶</button>
+    <button class="tab" data-tab="cache">💾 缓存管理</button>
+  </div>
+
+  <!-- ====== Tab 1: 选股 ====== -->
+  <div id="tab-pick" class="tab-pane">
+    <div class="pick-layout">
+      <div class="pick-config">
+        <h3>选股参数</h3>
+
+        <div class="field">
+          <label>市值分桶（默认排除 C1 微盘股）</label>
+          <div class="bucket-chk" id="bucketChecks">加载中...</div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Top N</label>
+            <input type="number" id="topN" value="10" min="1" max="50">
+          </div>
+          <div class="field">
+            <label>KDJ 窗口 (日线根数)</label>
+            <input type="number" id="kdjWindow" value="60" min="30" max="240">
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>日均成交额下限 (万元)</label>
+            <input type="number" id="minAmount" value="100" min="0" step="10">
+          </div>
+          <div class="field">
+            <label>上市天数下限</label>
+            <input type="number" id="minList" value="20" min="0">
+          </div>
+        </div>
+
+        <div class="field-row">
+          <label class="chk-row">
+            <input type="checkbox" id="excludeST" checked>
+            <span>排除 ST / *ST / 退市</span>
+          </label>
+          <label class="chk-row">
+            <input type="checkbox" id="forceUpdate">
+            <span>选股前强制刷新日线</span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label>J 连续上涨天数 <span class="val-badge" id="upDaysVal">2</span></label>
+          <div class="slider-row">
+            <input type="range" id="upDaysSlider" min="0" max="10" value="2" step="1">
+            <input type="number" id="upDaysNum" min="0" max="10" value="2" step="1">
+          </div>
+          <div class="hint-tiny">0 = 关闭此条件；数值越大筛选越严格</div>
+        </div>
+
+        <button class="btn-primary" id="btnPick">🚀 开始选股</button>
+        <div class="hint" id="pickHint"></div>
+      </div>
+
+      <div class="pick-result">
+        <h3>选股结果</h3>
+        <div id="resultStats" class="result-stats">点击「开始选股」运行筛选</div>
+        <div class="result-table-wrap">
+          <table class="result-table" id="resultTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th data-sort="code">代码</th>
+                <th>名称</th>
+                <th>分桶</th>
+                <th data-sort="float_mv">流通市值(亿)</th>
+                <th data-sort="K">K</th>
+                <th data-sort="D">D</th>
+                <th data-sort="J">J</th>
+                <th data-sort="jk_gap">J-K</th>
+                <th data-sort="J_slope">J斜率</th>
+                <th data-sort="vol_ratio">量比</th>
+                <th data-sort="chg_pct">涨跌幅</th>
+                <th>J>K</th>
+                <th>J>D</th>
+                <th>K>D</th>
+                <th id="thJUp">J↑2天</th>
+              </tr>
+            </thead>
+            <tbody id="resultBody"><tr><td colspan="16" class="empty">暂无数据</td></tr></tbody>
+          </table>
+        </div>
+        <div class="kdj-chart-box" id="kdjChartBox" style="display:none">
+          <div class="cht-bar">
+            <span class="cht-title">📈 KDJ 曲线 · <span id="kdjChartTitle">点击上方表格行查看</span></span>
+            <span class="cht-hint">蓝线 K · 橙线 D · 紫线 J</span>
+          </div>
+          <div class="cht-body" id="kdjChart" style="height:260px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== Tab 2: 市值分桶 ====== -->
+  <div id="tab-buckets" class="tab-pane" style="display:none">
+    <div class="bucket-layout">
+      <div class="bucket-chart-box">
+        <div class="cht-bar">
+          <span class="t">📊 市值分桶股票分布（本地已缓存）</span>
+          <button onclick="refreshBuckets()">🔄 刷新</button>
+        </div>
+        <div class="cht-body" id="bucketChart"></div>
+      </div>
+      <div class="bucket-detail">
+        <h3>分桶定义</h3>
+        <div class="bucket-legend" id="bucketLegend"></div>
+        <h3>说明</h3>
+        <p class="desc">C1 微盘股（0-20亿）默认排除，避免流动性风险。分桶可在选股时自由组合。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== Tab 3: 缓存管理 ====== -->
+  <div id="tab-cache" class="tab-pane" style="display:none">
+    <div class="cache-layout">
+      <div class="cache-status">
+        <h3>缓存状态</h3>
+        <div class="status-kpi" id="statusKpi">加载中...</div>
+        <div class="kl-chart-box">
+          <div class="cht-bar">
+            <span class="cht-title">📊 日线根数分布</span>
+            <span class="cht-hint">按区间统计各股票已缓存的日线条数</span>
+          </div>
+          <div class="cht-body" id="klRowCountChart" style="height:260px"></div>
+        </div>
+      </div>
+
+      <div class="cache-sync">
+        <h3>同步缓存</h3>
+        <div class="field-row">
+          <div class="field">
+            <label>业务类型</label>
+            <select id="syncBiz">
+              <option value="all">全部（市值 + 日线）</option>
+              <option value="mv">仅市值</option>
+              <option value="kline">仅日线</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>日线根数</label>
+            <input type="number" id="klineCount" value="120" min="30" max="240">
+          </div>
+        </div>
+        <div class="field">
+          <label>股票代码（逗号分隔，留空=全量）</label>
+          <textarea id="syncCodes" placeholder="如: 600519.SH,000001.SZ" rows="2"></textarea>
+        </div>
+        <div class="field-row">
+          <label class="chk-row">
+            <input type="checkbox" id="forceSync">
+            <span>强制刷新（忽略缓存有效期）</span>
+          </label>
+        </div>
+        <button class="btn-primary" id="btnSync">⬇️ 同步缓存</button>
+        <div class="progress-box" id="syncProgress" style="display:none">
+          <div class="progress-header">
+            <span class="progress-label" id="syncProgLabel">准备中...</span>
+            <span class="progress-pct" id="syncProgPct">0%</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="syncProgFill"></div></div>
+          <div class="progress-sub" id="syncProgSub"></div>
+        </div>
+        <div class="hint" id="syncHint"></div>
+      </div>
+
+      <div class="cache-delete">
+        <h3>删除缓存</h3>
+        <div class="field-row">
+          <div class="field">
+            <label>删除业务</label>
+            <select id="delBiz">
+              <option value="kline">日线缓存</option>
+              <option value="mv">市值缓存</option>
+              <option value="all">全部</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>股票代码（留空=全清）</label>
+          <textarea id="delCodes" placeholder="如: 600519.SH,000001.SZ" rows="2"></textarea>
+        </div>
+        <button class="btn-danger" id="btnDelete">🗑️ 删除</button>
+        <div class="progress-box" id="delProgress" style="display:none">
+          <div class="progress-header">
+            <span class="progress-label" id="delProgLabel">准备中...</span>
+            <span class="progress-pct" id="delProgPct">0%</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="delProgFill"></div></div>
+          <div class="progress-sub" id="delProgSub"></div>
+        </div>
+        <div class="hint" id="delHint"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/screener.js') }}?v=20260814a"></script>
+</body>
+</html>

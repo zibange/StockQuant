@@ -1,0 +1,93 @@
+<!-- Last modified: 2026-08-13 -->
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><title>后台管理</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+<style>
+  .auth-mask{position:fixed;inset:0;background:rgba(15,23,42,.92);z-index:9999;display:flex;align-items:center;justify-content:center}
+  .auth-mask.hidden{display:none}
+  .auth-box{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:28px 32px;width:320px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .auth-box h2{margin:0 0 6px;font-size:18px;color:#f1f5f9}
+  .auth-box p{margin:0 0 18px;color:#94a3b8;font-size:13px}
+  .auth-box input{width:100%;box-sizing:border-box;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#f1f5f9;font-size:14px;margin-bottom:10px;outline:none}
+  .auth-box input:focus{border-color:#3b82f6}
+  .auth-box button{width:100%;padding:10px;background:#3b82f6;color:#fff;border:0;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;margin-top:4px}
+  .auth-box button:hover{background:#2563eb}
+  .auth-box .err{color:#f87171;font-size:12px;margin-top:8px;min-height:16px}
+  .auth-box .hint{text-align:center;margin-top:14px;color:#64748b;font-size:12px}
+  .auth-box .hint a{color:#3b82f6;text-decoration:none}
+  .topbar .user-info{margin-left:auto;color:#cbd5e1;font-size:13px}
+  .topbar .user-info button{background:transparent;border:1px solid #475569;color:#94a3b8;padding:4px 10px;border-radius:4px;font-size:12px;cursor:pointer;margin-left:8px}
+  .topbar .user-info button:hover{color:#f87171;border-color:#f87171}
+</style>
+</head><body>
+
+<div class="auth-mask{% if not require_auth %} hidden{% endif %}" id="authMask">
+  <div class="auth-box">
+    <h2>🛠️ 后台管理 · 登录</h2>
+    <p>请登录后使用系统管理功能</p>
+    <input type="text" id="authUser" placeholder="用户名" autocomplete="username">
+    <input type="password" id="authPwd" placeholder="密码" autocomplete="current-password">
+    <button onclick="doAuthLogin()">登录</button>
+    <div class="err" id="authErr"></div>
+    <div class="hint">首次使用？<a href="/">返回主界面注册账户</a></div>
+  </div>
+</div>
+
+<h1>🛠️ 后台管理 <span id="ver" style="color:#64748b;font-size:12px;font-weight:400"></span>
+  <a href="/" class="back">← 返回主界面</a>
+</h1>
+
+<div class="topbar">
+  <button onclick="refresh()">🔄 刷新概览</button>
+  <button onclick="clearBrowsingCache()">🗑️ 清空浏览器缓存</button>
+  <button class="danger" onclick="clearAllCache()">💥 清空全部数据缓存</button>
+  <button class="back-main" onclick="location.href='/'">🏠 返回主界面</button>
+  <button class="danger" onclick="shutdown()">⏻ 退出程序</button>
+  <span class="user-info" id="userInfo" style="display:none">
+    👤 <span id="userName">-</span>
+    <button onclick="doAuthLogout()">退出登录</button>
+  </span>
+</div>
+
+<div class="card"><h2>📋 系统概览 <span class="hint">自动每 30s 刷新</span></h2><div class="meta" id="meta"></div></div>
+<div class="card"><h2>💾 缓存监控 <span class="hint">清空全部 = 删除所有 Parquet + 重建 DuckDB</span></h2>
+  <div class="cache-summary" id="cacheSum"></div>
+  <table><thead><tr><th>缓存目录</th><th>完整路径</th><th class="num">文件数</th><th class="num">大小</th><th class="num">K线行数</th><th>最后更新</th></tr></thead><tbody id="cacheBody"></tbody></table>
+</div>
+<div class="card"><h2>📦 环境依赖</h2><div id="deps"></div></div>
+<div class="card"><h2>🔌 API 端点监控</h2>
+  <table><thead><tr><th>路径</th><th>方法</th><th>状态</th><th>操作</th></tr></thead><tbody id="endpointsBody"></tbody></table>
+</div>
+
+<div class="card">
+  <h2>🔀 数据流向图 <span class="hint">滚轮缩放 · 拖拽平移 · 点击节点查看详情/测试</span></h2>
+  <div class="legend">
+    <span><i class="ex"></i>外部源</span><span><i class="tq"></i>TQ-Python</span><span><i class="st"></i>存储层</span><span><i class="api"></i>后端 API</span><span><i class="fe"></i>前端</span>
+    <span class="legend-line"><span class="ln"></span>实时写入</span><span class="legend-line"><span class="ln dash"></span>查询回读</span>
+  </div>
+  <div class="flow-toolbar">
+    <button onclick="zoomBy(1.25)">🔍+</button><button onclick="zoomBy(0.8)">🔍−</button>
+    <button onclick="zoomReset()">⟲ 重置</button><button onclick="fitAll()">⤢ 适应窗口</button>
+    <span class="zoom-info" id="zoomInfo">100%</span>
+  </div>
+  <div class="flow-wrap" id="flowWrap">
+    <svg class="flow-svg" id="flowSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+</div>
+
+<div class="card"><h2>⚙️ 系统信息</h2><div class="meta" id="sysInfo"></div></div>
+<div style="text-align:center;color:#475569;font-size:11px;margin-top:18px">StockQuant Admin · 30s auto refresh</div>
+
+<div class="modal-mask" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="type-tag" id="modalTag">-</span>
+      <h3 id="modalTitle">-</h3>
+      <button class="close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+</body></html>

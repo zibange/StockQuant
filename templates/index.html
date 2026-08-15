@@ -1,0 +1,89 @@
+<!-- Last modified: 2026-08-11 20:32:34 -->
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>股票量化研究</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+<div class="hdr">
+  <h1>📈 通达信量化研究</h1>
+  <div class="sb">
+    <input id="q" type="text" placeholder="搜索股票名称 / 拼音 / 代码..." autocomplete="off">
+    <div id="sug" class="sug" style="display:none"></div>
+  </div>
+  <div class="st">API <b>●</b> 就绪</div>
+  <div id="userArea" class="user-area">
+    <button class="btn-login" onclick="showAuth('login')">登录</button>
+  </div>
+</div>
+<div class="main">
+  <div class="p">
+    <h3>自选</h3>
+    <div id="wl"><div class="emp">搜索股票开始</div></div>
+  </div>
+  <div class="p">
+    <div id="kpi" class="kpi" style="display:none"></div>
+    <div class="ct">
+      <button class="on" onclick="sp(this,'1d')">日线</button>
+      <button onclick="sp(this,'1w')">周线</button>
+      <button onclick="sp(this,'1mon')">月线</button>
+      <span class="sep"></span>
+      <label>时间:</label>
+      <button class="range-btn" id="range_3m" onclick="setRange('3m')">近3月</button>
+      <button class="range-btn" id="range_6m" onclick="setRange('6m')">近6月</button>
+      <button class="range-btn on" id="range_1y" onclick="setRange('1y')">近1年</button>
+      <button class="range-btn" id="range_3y" onclick="setRange('3y')">近3年</button>
+      <button class="range-btn" id="range_all" onclick="setRange('all')">全部</button>
+      <span class="sep"></span>
+      <input type="date" id="dateStart" onchange="setRange('custom')"> ~ 
+      <input type="date" id="dateEnd" onchange="setRange('custom')">
+      <button onclick="rk()" style="margin-left:auto">🔄 刷新</button>
+      <a href="/fundamental" style="margin-left:8px;padding:6px 12px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;font-size:13px;color:#475569;text-decoration:none">📊 基本面</a>
+      <a href="/screener" style="margin-left:8px;padding:6px 12px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;font-size:13px;color:#475569;text-decoration:none">🎯 选股</a>
+      <a href="/admin" style="margin-left:8px;padding:6px 12px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;font-size:13px;color:#475569;text-decoration:none">🛠️ 后台</a>
+    </div>
+    <div class="cht"><div class="cht-bar"><span class="t">📈 K线图（蜡烛 + MA5/MA10/MA20/MA60）</span><span class="tools"><button onclick="openChartModal('kline','K线图')">⛶ 全屏</button></span></div><div class="cht-body" id="kline"></div></div>
+    <div class="cht"><div class="cht-bar"><span class="t">📊 成交量</span><span class="tools"><button onclick="openChartModal('vol','成交量')">⛶ 全屏</button></span></div><div class="cht-body" id="vol"></div></div>
+    <div class="cht"><div class="cht-bar"><span class="t">📊 MACD（DIF / DEA / MACD柱）</span><span class="tools"><button onclick="openChartModal('macd','MACD')">⛶ 全屏</button></span></div><div class="cht-body" id="macd"></div></div>
+    <div class="cht"><div class="cht-bar"><span class="t">📊 KDJ（K / D / J，9日RSV 通达信算法）</span><span class="tools"><button onclick="openChartModal('kdj','KDJ')">⛶ 全屏</button></span></div><div class="cht-body" id="kdj"></div></div>
+    <div class="sec" id="inds" style="display:none"></div>
+  </div>
+  <div class="p">
+    <div id="asideAssets" class="aside-assets"><div style="font-size:11px;color:#94a3b8">加载中...</div></div>
+    <div class="tabs"><button class="tab on" onclick="switchTab(this,0)">持仓</button><button class="tab" onclick="switchTab(this,1)">预测</button><button class="tab" onclick="switchTab(this,2)">🛒 交易</button><button class="tab" onclick="switchTab(this,3)">📊 行业大盘</button><button class="tab" onclick="switchTab(this,4)">📝 交易记录</button></div>
+    <div id="tab0"><div id="pb_portfolio"><div class="emp">加载中...</div></div></div>
+    <div id="tab1" style="display:none"><div id="pb"><div class="emp">搜索股票后查看预测</div></div></div>
+    <div id="tab2" style="display:none"><div id="pb_trade"><div class="emp">加载中...</div></div></div>
+    <div id="tab3" style="display:none"><div id="pb_sector"><div class="emp">加载中...</div></div></div>
+    <div id="tab4" style="display:none"><div id="pb_trades"><div class="emp">加载中...</div></div></div>
+  </div>
+</div>
+<div id="tip-panel" class="ind-tip-panel"></div>
+<div id="chartModal" class="chart-modal" onclick="if(event.target===this)closeChartModal()">
+  <div class="inner"><div class="hd"><div class="t" id="cmTitle">图表</div><button onclick="closeChartModal()">关闭 ✕</button></div><div class="bd" id="cmBody"></div></div>
+</div>
+<div id="authModal" class="chart-modal" onclick="if(event.target===this)closeAuth()">
+  <div class="inner">
+    <div class="hd"><div class="t" id="authTitle">登录</div><button onclick="closeAuth()">✕</button></div>
+    <div class="bd" id="authBody">
+      <div style="display:flex;gap:10px;margin-bottom:20px">
+        <button class="tab on" id="authTabLogin" onclick="switchAuth('login')" style="flex:1">登录</button>
+        <button class="tab" id="authTabRegister" onclick="switchAuth('register')" style="flex:1">注册</button>
+      </div>
+      <div id="authForm">
+        <div><label>用户名</label><input id="authUsername" placeholder="至少2位"></div>
+        <div><label>密码</label><input id="authPassword" type="password" placeholder="至少4位"></div>
+        <div id="authExtra" style="display:none"><label>昵称（可选）</label><input id="authDisplay" placeholder="显示用的名字"></div>
+        <div id="authMsg" style="font-size:12px;margin-top:8px;min-height:18px;text-align:center"></div>
+        <button id="authSubmit" onclick="doAuth()">登 录</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

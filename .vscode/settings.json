@@ -1,0 +1,43 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "workbench.editorAssociations": {
+        "*.copilotmd": "vscode.markdown.preview.editor",
+        "*.dll": "default",
+        "*.parquet": "parquetViewer.parquetViewer",
+        "*.csv": "duckdb.dataFileViewer",
+        "*.tsv": "duckdb.dataFileViewer",
+        "*.xlsx": "duckdb.dataFileViewer",
+        "*.duckdb": "duckdb-viewer.dataViewer"
+    },
+    "duckdb.databases": [
+        {
+            "alias": "portfolio",
+            "type": "file",
+            "path": "d:\\AiPython\\AIwork2\\data\\portfolio.duckdb",
+            "attached": false
+        },
+        {
+            "alias": "market",
+            "type": "file",
+            "path": "d:\\AiPython\\AIwork2\\data\\market.duckdb",
+            "attached": false
+        },
+        {
+            "alias": "fundamental",
+            "type": "file",
+            "path": "d:\\AiPython\\AIwork2\\data\\fundamental.duckdb",
+            "attached": false
+        }
+    ],
+    "duckdb.defaultDatabase": "fundamental",
+    "sqltools.useNodeRuntime": true,
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "driver": "DuckDB",
+            "name": "5555",
+            "database": "${workspaceFolder:AIwork2}/data/market.duckdb"
+        }
+    ]
+}

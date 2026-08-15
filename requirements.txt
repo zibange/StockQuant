@@ -1,0 +1,8 @@
+# Last modified: 2026-08-12 21:30:00
+# 项目依赖锁定 (与开发/生产环境实测版本一致)
+flask==3.1.3
+pandas==2.3.3
+duckdb==1.5.5
+pyarrow==25.0.0
+# matplotlib 可选: 仅 batch_sync 等绘图脚本使用
+# 当前环境 NumPy 2.x 与旧版 matplotlib 冲突, 如需绘图请安装 matplotlib<3.9
